@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <PreferenceCategory
+        android:title="登录选项">
+
+        <CheckBoxPreference
+            android:key="checkbox_preference"
+            android:title="保持登录"
+            android:defaultValue="true"/>
+
+        <EditTextPreference
+            android:key="edittext_preference"
+            android:title="账户信息"
+            android:summary="asdf"
+            android:dialogTitle="账户"
+            android:dependency="checkbox_preference" />
+
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        android:title="图片选项">
+
+        <ListPreference
+            android:key="list_preference"
+            android:title="列表"
+            android:dialogTitle="列表"
+            android:entries="@array/entries_list_preference"
+            android:entryValues="@array/entryvalues_list_preference" />
+
+        <Preference
+            android:title="自定义">
+            <intent android:action="android.intent.action.VIEW"
+                android:data="http://codepath.com/" />
+        </Preference>
+
+    </PreferenceCategory>
+
+</PreferenceScreen>
