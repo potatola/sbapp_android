@@ -8,9 +8,15 @@ import android.app.FragmentManager;
 import android.support.v13.app.FragmentPagerAdapter;
 import android.support.v4.view.ViewPager;
 import android.support.v7.widget.Toolbar;
+import android.widget.Toast;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+
+import cn.smssdk.EventHandler;
+import cn.smssdk.SMSSDK;
+import cn.smssdk.gui.RegisterPage;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -34,7 +40,6 @@ public class MainActivity extends AppCompatActivity {
         tabLayout.setupWithViewPager(viewPager);
 
         tabLayout.addOnTabSelectedListener(new TabLayout.OnTabSelectedListener(){
-
             @Override
             public void onTabSelected(TabLayout.Tab tab) {
                 toolbar.setTitle(tab.getText());
@@ -42,14 +47,15 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public void onTabUnselected(TabLayout.Tab tab) {
-
             }
 
             @Override
             public void onTabReselected(TabLayout.Tab tab) {
-
             }
         });
+
+        //SMS SDK
+        SMSSDK.initSDK(this, "15b542def60d6", "1250f03c93489b4b9f89bbc284737a4f");
     }
 
     private void setupViewPager(ViewPager viewPager) {
