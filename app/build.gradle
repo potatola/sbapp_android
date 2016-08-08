@@ -42,8 +42,12 @@ dependencies {
     compile 'com.android.support:cardview-v7:24.1.1'
     compile 'com.android.support:recyclerview-v7:24.1.1'
     compile 'com.android.support:support-v13:24.1.1'
+    //SMS
     compile name:'SMSSDK-2.1.1',ext:'aar'
     compile name:'SMSSDKGUI-2.1.1',ext:'aar'
+    //async Network
     compile 'com.loopj.android:android-async-http:1.4.9'
     compile 'com.google.code.gson:gson:2.7'
+    //dialogs
+    compile 'com.afollestad.material-dialogs:core:0.8.6.2'
 }

@@ -5,6 +5,7 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
+import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
 import android.media.ExifInterface;
 import android.os.AsyncTask;
@@ -26,6 +27,7 @@ import android.widget.RadioButton;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.afollestad.materialdialogs.MaterialDialog;
 import com.baidu.location.BDLocation;
 import com.baidu.location.BDLocationListener;
 import com.baidu.location.LocationClient;
@@ -37,6 +39,7 @@ import com.gengyufeng.partworld.Model.MyActivity;
 import com.gengyufeng.partworld.Utils.Constant;
 import com.gengyufeng.partworld.Utils.NetClient;
 import com.gengyufeng.partworld.Adapters.ActivitiesRecAdapter;
+import com.gengyufeng.partworld.Utils.ViewUnits;
 import com.github.clans.fab.FloatingActionButton;
 import com.google.gson.Gson;
 import com.loopj.android.http.JsonHttpResponseHandler;
@@ -56,7 +59,6 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
-
 import cn.smssdk.EventHandler;
 import cn.smssdk.SMSSDK;
 import cn.smssdk.gui.RegisterPage;
@@ -106,6 +108,10 @@ public class MainFragment extends Fragment{
     EditText alertText;
     private final Integer CAMERA_PICKER = 0;
     private String imagePath;
+
+    //Loading dialogs
+    MaterialDialog uploadImageDialog;
+    MaterialDialog checkinDialog;
 
     public MainFragment() {
         // Required empty public constructor
@@ -171,9 +177,14 @@ public class MainFragment extends Fragment{
                                                     return;
                                                 }
                                                 JSONObject data = response.getJSONObject("data");
+                                                Log.i("gyf", response.toString());
                                                 sp.edit().putInt("uid", data.getInt("uid")).apply();
                                                 sp.edit().putString("username", data.getString("username")).apply();
                                                 sp.edit().putString("realname", data.getString("realname")).apply();
+                                                if (data.has("aid")) {
+                                                    sp.edit().putInt("aid", data.getInt("aid")).apply();
+                                                    sp.edit().putString("title", data.getString("title")).apply();
+                                                }
                                                 performLoggedIn();
                                             } catch (Exception e) {
                                                 Toast.makeText(getActivity(), e.toString(), Toast.LENGTH_SHORT).show();
@@ -248,7 +259,7 @@ public class MainFragment extends Fragment{
                                                     @Override
                                                     public void onSuccess(int statusCode, Header[] headers, JSONObject response) {
                                                         try {
-                                                            Toast.makeText(getActivity(), response.toString(), Toast.LENGTH_LONG).show();
+                                                            Log.i("gyf", response.toString());
                                                             JSONObject data = response.getJSONObject("data");
                                                             sp.edit().putInt("uid", data.getInt("uid")).apply();
                                                             sp.edit().putString("username", data.getString("username")).apply();
@@ -363,6 +374,7 @@ public class MainFragment extends Fragment{
             public void onClick(View view) {
                 Locate_source = 0;
                 mLocationClient.start();
+                checkinDialog = ViewUnits.getLoadingDialog(getActivity(), "签到", "正在签到...");
             }
         });
 
@@ -373,7 +385,9 @@ public class MainFragment extends Fragment{
                 Locate_source = 1;
                 //mLocationClient.start();
                 Intent cameraIntent = new Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE);
-                startActivityForResult(cameraIntent, CAMERA_PICKER);
+                //startActivityForResult(cameraIntent, CAMERA_PICKER);
+
+                //uploadImageDialog = ViewUnits.getLoadingDialog(getActivity());
             }
         });
 
@@ -501,6 +515,7 @@ public class MainFragment extends Fragment{
                     NetClient.post("act_activity", params, new JsonHttpResponseHandler() {
                         @Override
                         public void onSuccess(int statusCode, Header[] headers, JSONObject response) {
+                            checkinDialog.dismiss();
                             try {
                                 if (response.getInt("status") == 0) {
                                     Toast.makeText(getActivity(), response.getString("data"), Toast.LENGTH_LONG).show();
