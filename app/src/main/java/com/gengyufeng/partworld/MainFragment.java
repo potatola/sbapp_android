@@ -1,5 +1,6 @@
 package com.gengyufeng.partworld;
 
+import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.content.Intent;
@@ -49,12 +50,16 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
@@ -183,7 +188,7 @@ public class MainFragment extends Fragment{
                                                 sp.edit().putString("realname", data.getString("realname")).apply();
                                                 if (data.has("aid")) {
                                                     sp.edit().putInt("aid", data.getInt("aid")).apply();
-                                                    sp.edit().putString("title", data.getString("title")).apply();
+                                                    sp.edit().putString("activity", data.getString("title")).apply();
                                                 }
                                                 performLoggedIn();
                                             } catch (Exception e) {
@@ -385,7 +390,7 @@ public class MainFragment extends Fragment{
                 Locate_source = 1;
                 //mLocationClient.start();
                 Intent cameraIntent = new Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE);
-                //startActivityForResult(cameraIntent, CAMERA_PICKER);
+                startActivityForResult(cameraIntent, CAMERA_PICKER);
 
                 //uploadImageDialog = ViewUnits.getLoadingDialog(getActivity());
             }
@@ -531,6 +536,17 @@ public class MainFragment extends Fragment{
                     });
                 }
             }
+            else {
+                Log.e("gyf", sb.toString());
+                switch (Locate_source) {
+                    case 0:
+                        checkinDialog.dismiss();
+                        break;
+                    case 1:
+                        uploadImageDialog.dismiss();
+                        break;
+                }
+            }
         }
 
     }
@@ -540,6 +556,7 @@ public class MainFragment extends Fragment{
 
         Log.i("gyf", ""+requestCode);
         if (CAMERA_PICKER == requestCode) {
+            if (resultCode == Activity.RESULT_CANCELED) return;
             Log.i("gyf", "photo");
             onCaptureImageResult(data);
         }
@@ -551,7 +568,7 @@ public class MainFragment extends Fragment{
         thumbnail.compress(Bitmap.CompressFormat.JPEG, 90, bytes);
         File destination = new File(Environment.getExternalStorageDirectory(),
                 System.currentTimeMillis() + ".jpg");
-        String fpath = destination.getAbsolutePath();
+        final String fpath = destination.getAbsolutePath();
         imagePath = fpath;
         FileOutputStream fo;
         try {
@@ -560,37 +577,14 @@ public class MainFragment extends Fragment{
             fo.write(bytes.toByteArray());
             fo.close();
 
-            RequestParams params = new RequestParams();
-            params.put("file", new File(fpath), RequestParams.APPLICATION_OCTET_STREAM, "file");
-
-            UploadFileToServer upFile = new UploadFileToServer();
-            upFile.execute();
-
-            Log.i("gyf", fpath+" --- " + params.toString());
-            NetClient.post("upload_image", params, new JsonHttpResponseHandler() {
-                @Override
-                public void onSuccess(int statusCode, Header[] headers, JSONObject response) {
-                    try {
-                        if (response.getInt("status") == 0) {
-                            Log.e("gyf", response.getString("data"));
-                            Toast.makeText(getActivity(), response.getString("data"), Toast.LENGTH_LONG).show();
-                            return;
-                        }
-                        Toast.makeText(getActivity(), response.getString("data"), Toast.LENGTH_LONG).show();
-                        Log.e("gyf", response.getString("data"));
-                    } catch (Exception e) {
-                        Log.e("gyf", e.toString());
-                        Toast.makeText(getActivity(), e.toString(), Toast.LENGTH_SHORT).show();
-                        return;
-                    }
-                }
+            new Thread(new Runnable() {
 
                 @Override
-                public void onFailure(int statusCode, Header[] headers, Throwable throwable, JSONObject errorResponse) {
-                    super.onFailure(statusCode, headers, throwable, errorResponse);
-                    Log.e("gyf", "onFailure");
+                public void run() {
+                    uploadFileAndString(Constant.backendUrlBase+"upload_image", "test.jpg", new File(fpath));
                 }
-            });
+            }).start();
+            
         } catch (FileNotFoundException e) {
             e.printStackTrace();
         } catch (IOException e) {
@@ -598,49 +592,69 @@ public class MainFragment extends Fragment{
         }
     }
 
-    /**
-     * Uploading the file to server
-     */
-    private class UploadFileToServer extends AsyncTask<Void, Integer, String> {
-        @Override
-        protected void onPreExecute() {
-            super.onPreExecute();
-        }
+    private void uploadFileAndString(String actionUrl, String newName, File uploadFile) {
+        String end = "\r\n";
+        String twoHyphens = "--";
+        String boundary = "*****";
+        try {
+            URL url = new URL(actionUrl);
+            HttpURLConnection con = (HttpURLConnection) url.openConnection();
+        /* 允许Input、Output，不使用Cache */
+            con.setDoInput(true);
+            con.setDoOutput(true);
+            con.setUseCaches(false);
+        /* 设置传送的method=POST */
+            con.setRequestMethod("POST");
+        /* setRequestProperty */
+            con.setRequestProperty("Connection", "Keep-Alive");
+            con.setRequestProperty("Charset", "UTF-8");
+            con.setRequestProperty("Content-Type",
+                    "multipart/form-data;boundary=" + boundary);
+        /* 设置DataOutputStream */
+            DataOutputStream ds = new DataOutputStream(con.getOutputStream());
+            ds.writeBytes(twoHyphens + boundary + end);
+            ds.writeBytes("Content-Disposition: form-data; "
+                    + "name=\"userfile\";filename=\"" + newName + "\"" + end);
+            ds.writeBytes(end);
 
-        @Override
-        protected String doInBackground(Void... params) {
-            return uploadFile();
-        }
+        /* 取得文件的FileInputStream */
+            FileInputStream fStream = new FileInputStream(uploadFile);
+        /* 设置每次写入1024bytes */
+            int bufferSize = 1024;
+            byte[] buffer = new byte[bufferSize];
 
-        private String uploadFile() {
-
-            try
-            {
-                Log.v("result", "XXXXXXXXXXXXXXXXXXXXXXX");
-                HttpClient client = new DefaultHttpClient();
-                File file = new File(imagePath);
-                HttpPost post = new HttpPost(Constant.backendUrlBase +"upload_image");
-
-                MultipartEntityBuilder entityBuilder = MultipartEntityBuilder.create();
-                entityBuilder.setMode(HttpMultipartMode.BROWSER_COMPATIBLE);
-                entityBuilder.addBinaryBody("file", file);
-                // add more key/value pairs here as needed
-
-                HttpEntity entity = entityBuilder.build();
-                post.setEntity(entity);
-
-                HttpResponse response = client.execute(post);
-                HttpEntity httpEntity = response.getEntity();
-
-                Log.v("result", EntityUtils.toString(httpEntity));
-                return "";
+            int length = -1;
+        /* 从文件读取数据至缓冲区 */
+            while ((length = fStream.read(buffer)) != -1) {
+            /* 将资料写入DataOutputStream中 */
+                ds.write(buffer, 0, length);
             }
-            catch(Exception e)
-            {
-                e.printStackTrace();
-                Log.v("result", e.toString());
-                return "";
+            ds.writeBytes(end);
+
+            // -----
+            ds.writeBytes(twoHyphens + boundary + end);
+            ds.writeBytes("Content-Disposition: form-data;name=\"name\"" + end);
+            ds.writeBytes(end + URLEncoder.encode("xiexiezhichi", "UTF-8")
+                    + end);
+            // -----
+
+            ds.writeBytes(twoHyphens + boundary + twoHyphens + end);
+        /* close streams */
+            fStream.close();
+            ds.flush();
+
+        /* 取得Response内容 */
+            InputStream is = con.getInputStream();
+            int ch;
+            StringBuffer b = new StringBuffer();
+            while ((ch = is.read()) != -1) {
+                b.append((char) ch);
             }
+            Log.i("gyf", "upload file succeed:"+b.toString());
+        /* 关闭DataOutputStream */
+            ds.close();
+        } catch (Exception e) {
+            Log.i("gyf", "upload file failed:"+e.toString());
         }
     }
 

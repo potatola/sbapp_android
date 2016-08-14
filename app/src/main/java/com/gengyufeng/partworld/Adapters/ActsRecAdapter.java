@@ -49,7 +49,6 @@ public class ActsRecAdapter extends RecyclerView.Adapter<ActsRecAdapter.ViewHold
         holder.location.setText(act.location);
         SimpleDateFormat ft = new SimpleDateFormat("yyyy.MM.dd hh:mm:ss");
         String sttime = ft.format(new Date((long)(act.time*1000)));
-        Log.i("gyf", sttime);
         holder.time.setText(sttime);
         switch (act.act) {
             case 0:
@@ -57,7 +56,7 @@ public class ActsRecAdapter extends RecyclerView.Adapter<ActsRecAdapter.ViewHold
                 holder.photo.setVisibility(View.GONE);
                 break;
             case 1:
-                holder.photo.setVisibility(View.VISIBLE);
+                holder.photo.setVisibility(View.GONE);
                 holder.content.setVisibility(View.GONE);
                 break;
             case 2:
@@ -66,7 +65,7 @@ public class ActsRecAdapter extends RecyclerView.Adapter<ActsRecAdapter.ViewHold
                 holder.location.setVisibility(View.GONE);
                 break;
         }
-        if (uid == act.uid) {
+        if (this.uid == act.uid) {
             holder.card_view.setBackgroundColor(Color.GREEN);
             holder.vright.setVisibility(View.GONE);
         }
