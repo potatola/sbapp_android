@@ -2,6 +2,8 @@ package com.gengyufeng.partworld;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.Context;
+import android.content.ContextWrapper;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -38,6 +40,8 @@ import com.gengyufeng.partworld.Adapters.ActsRecAdapter;
 import com.gengyufeng.partworld.Model.Act;
 import com.gengyufeng.partworld.Model.MyActivity;
 import com.gengyufeng.partworld.Utils.Constant;
+import com.gengyufeng.partworld.Utils.FileUploader;
+import com.gengyufeng.partworld.Utils.FileUploaderHandler;
 import com.gengyufeng.partworld.Utils.NetClient;
 import com.gengyufeng.partworld.Adapters.ActivitiesRecAdapter;
 import com.gengyufeng.partworld.Utils.ViewUnits;
@@ -95,6 +99,8 @@ public class MainFragment extends Fragment{
     private TextView tv_activity;
 
     private int uid = -1;
+    private int aid = -1;
+    private String activity = "";
     private SharedPreferences sp;
 
     String username, password, realname, job;
@@ -189,6 +195,8 @@ public class MainFragment extends Fragment{
                                                 if (data.has("aid")) {
                                                     sp.edit().putInt("aid", data.getInt("aid")).apply();
                                                     sp.edit().putString("activity", data.getString("title")).apply();
+                                                    aid = data.getInt("aid");
+                                                    activity = data.getString("title");
                                                 }
                                                 performLoggedIn();
                                             } catch (Exception e) {
@@ -330,48 +338,18 @@ public class MainFragment extends Fragment{
         initLocation();
         appbar.setVisibility(View.VISIBLE);
         tv_username.setText(""+sp.getString("realname", ""));
-        String activity = sp.getString("activity", null);
-        Integer aid = sp.getInt("aid", -1);
+        activity = sp.getString("activity", null);
+        aid = sp.getInt("aid", -1);
         if(activity != null) {
             tv_activity.setText(activity);
-            RequestParams params = new RequestParams();
-            params.put("aid", aid);
-            NetClient.post("acts", params, new JsonHttpResponseHandler() {
-                @Override
-                public void onSuccess(int statusCode, Header[] headers, JSONObject response) {
-                    try {
-                        if (response.getInt("status") == 0) {
-                            Toast.makeText(getActivity(), response.getString("data"), Toast.LENGTH_LONG).show();
-                            return;
-                        }
-                        Gson gson = new Gson();
-                        List<Act> acts = new ArrayList<Act>();
-                        JSONArray data = response.getJSONArray("data");
-                        Log.i("gyf", response.getString("data"));
-                        //Toast.makeText(getActivity(), response.getString("data"), Toast.LENGTH_LONG).show();
-                        for(int i=0; i<data.length(); i++) {
-                            Act act = gson.fromJson(data.getString(i), Act.class);
-                            acts.add(act);
-                        }
-                        ActsRecAdapter adapter = new ActsRecAdapter(acts, uid);
-
-                        mRecyclerView.setHasFixedSize(true);
-                        RecyclerView.LayoutManager mLayoutManager;
-
-                        // use a linear layout manager
-                        mLayoutManager = new LinearLayoutManager(getActivity());
-                        mRecyclerView.setLayoutManager(mLayoutManager);
-                        mRecyclerView.setAdapter(adapter);
-                    } catch (Exception e) {
-                        Log.e("gyf", e.toString());
-                        Toast.makeText(getActivity(), e.toString(), Toast.LENGTH_SHORT).show();
-                        return;
-                    }
-                }
-            });
+            update_acts();
         }
         else {
             tv_activity.setText("在'活动列表'中选择活动加入");
+            fab1.setVisibility(View.GONE);
+            fab2.setVisibility(View.GONE);
+            fab3.setVisibility(View.GONE);
+            return;
         }
         fab1.setVisibility(View.VISIBLE);
         fab1.setOnClickListener(new View.OnClickListener() {
@@ -390,9 +368,8 @@ public class MainFragment extends Fragment{
                 Locate_source = 1;
                 //mLocationClient.start();
                 Intent cameraIntent = new Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE);
+                Log.v("gyf", "folder:"+ Environment.getExternalStorageDirectory()+", "+ getActivity().getApplicationInfo().dataDir);
                 startActivityForResult(cameraIntent, CAMERA_PICKER);
-
-                //uploadImageDialog = ViewUnits.getLoadingDialog(getActivity());
             }
         });
 
@@ -526,7 +503,8 @@ public class MainFragment extends Fragment{
                                     Toast.makeText(getActivity(), response.getString("data"), Toast.LENGTH_LONG).show();
                                     return;
                                 }
-                                Toast.makeText(getActivity(), response.getString("data"), Toast.LENGTH_LONG).show();
+                                Toast.makeText(getActivity(), "签到成功", Toast.LENGTH_LONG).show();
+                                update_acts();
                             } catch (Exception e) {
                                 Log.e("gyf", e.toString());
                                 Toast.makeText(getActivity(), e.toString(), Toast.LENGTH_SHORT).show();
@@ -563,10 +541,11 @@ public class MainFragment extends Fragment{
     }
 
     private void onCaptureImageResult(Intent data) {
+        uploadImageDialog = ViewUnits.getLoadingDialog(getActivity(), "拍照上传", "正在上传照片");
         Bitmap thumbnail = (Bitmap) data.getExtras().get("data");
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-        thumbnail.compress(Bitmap.CompressFormat.JPEG, 90, bytes);
-        File destination = new File(Environment.getExternalStorageDirectory(),
+        thumbnail.compress(Bitmap.CompressFormat.JPEG, 100, bytes);
+        File destination = new File(getActivity().getApplicationInfo().dataDir,
                 System.currentTimeMillis() + ".jpg");
         final String fpath = destination.getAbsolutePath();
         imagePath = fpath;
@@ -577,85 +556,91 @@ public class MainFragment extends Fragment{
             fo.write(bytes.toByteArray());
             fo.close();
 
-            new Thread(new Runnable() {
+            final JsonHttpResponseHandler actActivityHandler = new JsonHttpResponseHandler() {
+                @Override
+                public void onSuccess(int statusCode, Header[] headers, JSONObject response) {
+                    uploadImageDialog.dismiss();
+                    try {
+                        if (response.getInt("status") == 0) {
+                            Toast.makeText(getActivity(), response.getString("data"), Toast.LENGTH_LONG).show();
+                            uploadImageDialog.dismiss();
+                            return;
+                        }
+                        Toast.makeText(getActivity(), "拍照上传成功", Toast.LENGTH_SHORT).show();
+                        update_acts();
+                    } catch (Exception e) {
+                        Log.e("gyf", e.toString());
+                        Toast.makeText(getActivity(), e.toString(), Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                }
+            };
+            Date date = new Date();
+            FileUploader.upload(Constant.backendUrlBase+"upload_image", "image_"+uid+"_"+date.getTime()+".jpg", new File(fpath), new FileUploaderHandler() {
+                @Override
+                public void onSuccess(int statusCode, String file_uri) {
+                    RequestParams params = new RequestParams();
+                    params.put("uid", uid);
+                    params.put("username", realname);
+                    params.put("act", 1);
+                    params.put("aid", aid);
+                    params.put("location", "not now");
+                    params.put("content", file_uri);
+                    params.put("latitude", 0);
+                    params.put("longitude", 0);
+                    NetClient.post("act_activity", params, actActivityHandler);
+                }
 
                 @Override
-                public void run() {
-                    uploadFileAndString(Constant.backendUrlBase+"upload_image", "test.jpg", new File(fpath));
+                public void onFail(String errorMessage) {
+                    Toast.makeText(getActivity(), "照片上传失败", Toast.LENGTH_SHORT).show();
+                    uploadImageDialog.dismiss();
                 }
-            }).start();
-            
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
-        } catch (IOException e) {
-            e.printStackTrace();
+            });
+
+        }
+        catch (Exception e) {
+            Toast.makeText(getActivity(), e.toString(), Toast.LENGTH_SHORT).show();
+            uploadImageDialog.dismiss();
         }
     }
 
-    private void uploadFileAndString(String actionUrl, String newName, File uploadFile) {
-        String end = "\r\n";
-        String twoHyphens = "--";
-        String boundary = "*****";
-        try {
-            URL url = new URL(actionUrl);
-            HttpURLConnection con = (HttpURLConnection) url.openConnection();
-        /* 允许Input、Output，不使用Cache */
-            con.setDoInput(true);
-            con.setDoOutput(true);
-            con.setUseCaches(false);
-        /* 设置传送的method=POST */
-            con.setRequestMethod("POST");
-        /* setRequestProperty */
-            con.setRequestProperty("Connection", "Keep-Alive");
-            con.setRequestProperty("Charset", "UTF-8");
-            con.setRequestProperty("Content-Type",
-                    "multipart/form-data;boundary=" + boundary);
-        /* 设置DataOutputStream */
-            DataOutputStream ds = new DataOutputStream(con.getOutputStream());
-            ds.writeBytes(twoHyphens + boundary + end);
-            ds.writeBytes("Content-Disposition: form-data; "
-                    + "name=\"userfile\";filename=\"" + newName + "\"" + end);
-            ds.writeBytes(end);
+    private void update_acts() {
+        RequestParams params = new RequestParams();
+        params.put("aid", aid);
+        NetClient.post("acts", params, new JsonHttpResponseHandler() {
+            @Override
+            public void onSuccess(int statusCode, Header[] headers, JSONObject response) {
+                try {
+                    if (response.getInt("status") == 0) {
+                        Toast.makeText(getActivity(), response.getString("data"), Toast.LENGTH_LONG).show();
+                        return;
+                    }
+                    Gson gson = new Gson();
+                    List<Act> acts = new ArrayList<Act>();
+                    JSONArray data = response.getJSONArray("data");
+                    Log.i("gyf", response.getString("data"));
+                    //Toast.makeText(getActivity(), response.getString("data"), Toast.LENGTH_LONG).show();
+                    for (int i = 0; i < data.length(); i++) {
+                        Act act = gson.fromJson(data.getString(i), Act.class);
+                        acts.add(act);
+                    }
+                    ActsRecAdapter adapter = new ActsRecAdapter(acts, uid);
 
-        /* 取得文件的FileInputStream */
-            FileInputStream fStream = new FileInputStream(uploadFile);
-        /* 设置每次写入1024bytes */
-            int bufferSize = 1024;
-            byte[] buffer = new byte[bufferSize];
+                    mRecyclerView.setHasFixedSize(true);
+                    RecyclerView.LayoutManager mLayoutManager;
 
-            int length = -1;
-        /* 从文件读取数据至缓冲区 */
-            while ((length = fStream.read(buffer)) != -1) {
-            /* 将资料写入DataOutputStream中 */
-                ds.write(buffer, 0, length);
+                    // use a linear layout manager
+                    mLayoutManager = new LinearLayoutManager(getActivity());
+                    mRecyclerView.setLayoutManager(mLayoutManager);
+                    mRecyclerView.setAdapter(adapter);
+                } catch (Exception e) {
+                    Log.e("gyf", e.toString());
+                    Toast.makeText(getActivity(), e.toString(), Toast.LENGTH_SHORT).show();
+                    return;
+                }
             }
-            ds.writeBytes(end);
-
-            // -----
-            ds.writeBytes(twoHyphens + boundary + end);
-            ds.writeBytes("Content-Disposition: form-data;name=\"name\"" + end);
-            ds.writeBytes(end + URLEncoder.encode("xiexiezhichi", "UTF-8")
-                    + end);
-            // -----
-
-            ds.writeBytes(twoHyphens + boundary + twoHyphens + end);
-        /* close streams */
-            fStream.close();
-            ds.flush();
-
-        /* 取得Response内容 */
-            InputStream is = con.getInputStream();
-            int ch;
-            StringBuffer b = new StringBuffer();
-            while ((ch = is.read()) != -1) {
-                b.append((char) ch);
-            }
-            Log.i("gyf", "upload file succeed:"+b.toString());
-        /* 关闭DataOutputStream */
-            ds.close();
-        } catch (Exception e) {
-            Log.i("gyf", "upload file failed:"+e.toString());
-        }
+        });
     }
 
 }

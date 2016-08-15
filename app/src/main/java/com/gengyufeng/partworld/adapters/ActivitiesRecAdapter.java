@@ -12,10 +12,13 @@ import android.widget.Toast;
 
 import com.gengyufeng.partworld.Model.MyActivity;
 import com.gengyufeng.partworld.R;
+import com.gengyufeng.partworld.Utils.Constant;
 import com.gengyufeng.partworld.Utils.NetClient;
 import com.google.gson.Gson;
 import com.loopj.android.http.JsonHttpResponseHandler;
 import com.loopj.android.http.RequestParams;
+import com.nostra13.universalimageloader.core.DisplayImageOptions;
+import com.nostra13.universalimageloader.core.ImageLoader;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -75,6 +78,14 @@ public class ActivitiesRecAdapter extends RecyclerView.Adapter<ActivitiesRecAdap
         // - replace the contents of the view with that element
         holder.mTitle.setText(dataset.get(position).title);
         holder.mContent.setText(dataset.get(position).content);
+        DisplayImageOptions options = new DisplayImageOptions.Builder()
+                .showImageOnLoading(R.drawable.ic_stub) // resource or drawable
+                .showImageForEmptyUri(R.drawable.ic_empty) // resource or drawable
+                .showImageOnFail(R.drawable.ic_error) // resource or drawable
+                .cacheInMemory(true) // default
+                .cacheOnDisk(true)
+                .build();
+        ImageLoader.getInstance().displayImage(dataset.get(position).cover_url, holder.mImage, options);
         holder.btn_join.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(final View view) {

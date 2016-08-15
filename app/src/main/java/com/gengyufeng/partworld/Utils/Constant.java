@@ -5,4 +5,5 @@ package com.gengyufeng.partworld.Utils;
  */
 public class Constant {
     public static String backendUrlBase = "http://gyf.cloudapp.net:5000/sbapp/1.0/";
+    public static String imageUrlBase = "http://gyf.cloudapp.net/";
 }

@@ -10,6 +10,9 @@ import android.support.v4.view.ViewPager;
 import android.support.v7.widget.Toolbar;
 import android.widget.Toast;
 
+import com.nostra13.universalimageloader.core.ImageLoader;
+import com.nostra13.universalimageloader.core.ImageLoaderConfiguration;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -56,6 +59,11 @@ public class MainActivity extends AppCompatActivity {
 
         //SMS SDK
         SMSSDK.initSDK(this, "15b542def60d6", "1250f03c93489b4b9f89bbc284737a4f");
+
+        // Create global configuration and initialize ImageLoader with this config
+        ImageLoaderConfiguration config = new ImageLoaderConfiguration.Builder(this)
+                .build();
+        ImageLoader.getInstance().init(config);
     }
 
     private void setupViewPager(ViewPager viewPager) {

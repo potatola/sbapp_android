@@ -33,7 +33,12 @@ card_view:cardCornerRadius="4dp">
                 android:textSize="20sp"
                 android:padding="5dp"
                 android:textColor="#ffffff"
+                android:textStyle="bold"
                 android:gravity="center"
+                android:shadowColor="@color/text_shadow"
+                android:shadowDx="-4"
+                android:shadowDy="-4"
+                android:shadowRadius="1"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"/>
         </RelativeLayout>

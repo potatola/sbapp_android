@@ -50,4 +50,5 @@ dependencies {
     compile 'com.google.code.gson:gson:2.7'
     //dialogs
     compile 'com.afollestad.material-dialogs:core:0.8.6.2'
+    compile 'com.nostra13.universalimageloader:universal-image-loader:1.9.5'
 }

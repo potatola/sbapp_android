@@ -13,6 +13,9 @@ import android.widget.TextView;
 
 import com.gengyufeng.partworld.Model.Act;
 import com.gengyufeng.partworld.R;
+import com.gengyufeng.partworld.Utils.Constant;
+import com.nostra13.universalimageloader.core.DisplayImageOptions;
+import com.nostra13.universalimageloader.core.ImageLoader;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -56,8 +59,17 @@ public class ActsRecAdapter extends RecyclerView.Adapter<ActsRecAdapter.ViewHold
                 holder.photo.setVisibility(View.GONE);
                 break;
             case 1:
-                holder.photo.setVisibility(View.GONE);
+                Log.i("gyf", "image:"+Constant.imageUrlBase+act.content);
+                holder.photo.setVisibility(View.VISIBLE);
+                DisplayImageOptions options = new DisplayImageOptions.Builder()
+                        .showImageOnLoading(R.drawable.ic_stub) // resource or drawable
+                        .showImageForEmptyUri(R.drawable.ic_empty) // resource or drawable
+                        .showImageOnFail(R.drawable.ic_error) // resource or drawable
+                        .cacheInMemory(true) // default
+                        .build();
+                ImageLoader.getInstance().displayImage(Constant.imageUrlBase+act.content, holder.photo, options);
                 holder.content.setVisibility(View.GONE);
+                holder.location.setVisibility(View.GONE);
                 break;
             case 2:
                 holder.content.setText(act.content);
@@ -65,6 +77,7 @@ public class ActsRecAdapter extends RecyclerView.Adapter<ActsRecAdapter.ViewHold
                 holder.location.setVisibility(View.GONE);
                 break;
         }
+        Log.v("gyf", "act:"+act.actid+", uid:"+act.uid+", position:"+position);
         if (this.uid == act.uid) {
             holder.card_view.setBackgroundColor(Color.GREEN);
             holder.vright.setVisibility(View.GONE);
