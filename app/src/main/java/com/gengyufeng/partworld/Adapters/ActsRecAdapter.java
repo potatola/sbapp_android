@@ -1,7 +1,6 @@
 package com.gengyufeng.partworld.Adapters;
 
 import android.graphics.Color;
-import android.support.v7.widget.CardView;
 import android.support.v7.widget.RecyclerView;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -24,29 +23,39 @@ import java.util.List;
 /**
  * Created by gengyufeng on 2016/8/5.
  */
-public class ActsRecAdapter extends RecyclerView.Adapter<ActsRecAdapter.ViewHolder> {
+public class ActsRecAdapter extends RecyclerView.Adapter<ActsRecAdapter.ActViewHolder> {
 
     private int uid;
     private List<Act> mActs;
+    DisplayImageOptions options;
 
     public ActsRecAdapter(List<Act> mActs, int uid) {
         this.mActs = mActs;
         this.uid = uid;
+
+        options = new DisplayImageOptions.Builder()
+            .showImageOnLoading(R.drawable.ic_stub) // resource or drawable
+            .showImageForEmptyUri(R.drawable.ic_empty) // resource or drawable
+            .showImageOnFail(R.drawable.ic_error) // resource or drawable
+            .cacheInMemory(true) // default
+            .build();
     }
 
     @Override
-    public ViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
+    public ActViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
         // create a new view
         View v = LayoutInflater.from(parent.getContext())
                 .inflate(R.layout.item_act, parent, false);
         // set the view's size, margins, paddings and layout parameters
-        ViewHolder vh = new ViewHolder(v);
+        ActViewHolder vh = new ActViewHolder(v);
         return vh;
     }
 
     @Override
-    public void onBindViewHolder(ViewHolder holder, int position) {
+    public void onBindViewHolder(ActViewHolder holder, int position) {
         Act act = mActs.get(position);
+        //TODO this function may cause blocking
+        holder.setIsRecyclable(false);
         holder.username.setText(act.username);
         holder.content.setText(act.content);
         holder.location.setText(act.location);
@@ -61,12 +70,6 @@ public class ActsRecAdapter extends RecyclerView.Adapter<ActsRecAdapter.ViewHold
             case 1:
                 Log.i("gyf", "image:"+Constant.imageUrlBase+act.content);
                 holder.photo.setVisibility(View.VISIBLE);
-                DisplayImageOptions options = new DisplayImageOptions.Builder()
-                        .showImageOnLoading(R.drawable.ic_stub) // resource or drawable
-                        .showImageForEmptyUri(R.drawable.ic_empty) // resource or drawable
-                        .showImageOnFail(R.drawable.ic_error) // resource or drawable
-                        .cacheInMemory(true) // default
-                        .build();
                 ImageLoader.getInstance().displayImage(Constant.imageUrlBase+act.content, holder.photo, options);
                 holder.content.setVisibility(View.GONE);
                 holder.location.setVisibility(View.GONE);
@@ -77,9 +80,8 @@ public class ActsRecAdapter extends RecyclerView.Adapter<ActsRecAdapter.ViewHold
                 holder.location.setVisibility(View.GONE);
                 break;
         }
-        Log.v("gyf", "act:"+act.actid+", uid:"+act.uid+", position:"+position);
         if (this.uid == act.uid) {
-            holder.card_view.setBackgroundColor(Color.GREEN);
+            holder.rl.setBackgroundColor(Color.GREEN);
             holder.vright.setVisibility(View.GONE);
         }
         else {
@@ -92,27 +94,25 @@ public class ActsRecAdapter extends RecyclerView.Adapter<ActsRecAdapter.ViewHold
         return mActs.size();
     }
 
-    public static class ViewHolder extends RecyclerView.ViewHolder {
+    public class ActViewHolder extends RecyclerView.ViewHolder {
         public RelativeLayout rl;
         public View vleft;
         public View vright;
-        public CardView card_view;
         public ImageView photo;
         public TextView username;
         public TextView content;
         public TextView location;
         public TextView time;
-        public ViewHolder(View view) {
+        public ActViewHolder(View view) {
             super(view);
-            vleft = (View) view.findViewById(R.id.vleft);
-            vright = (View) view.findViewById(R.id.vright);
-            rl = (RelativeLayout) view.findViewById(R.id.rl);
-            card_view = (CardView) view.findViewById(R.id.card_view);
-            photo = (ImageView) view.findViewById(R.id.photo);
-            username = (TextView) view.findViewById(R.id.username);
-            content = (TextView) view.findViewById(R.id.content);
-            location = (TextView) view.findViewById(R.id.location);
-            time = (TextView) view.findViewById(R.id.time);
+            this.vleft = (View) view.findViewById(R.id.vleft);
+            this.vright = (View) view.findViewById(R.id.vright);
+            this.rl = (RelativeLayout) view.findViewById(R.id.rl);
+            this.photo = (ImageView) view.findViewById(R.id.photo);
+            this.username = (TextView) view.findViewById(R.id.username);
+            this.content = (TextView) view.findViewById(R.id.content);
+            this.location = (TextView) view.findViewById(R.id.location);
+            this.time = (TextView) view.findViewById(R.id.time);
         }
     }
 }

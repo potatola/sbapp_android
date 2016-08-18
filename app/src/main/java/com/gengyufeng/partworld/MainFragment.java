@@ -8,13 +8,16 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
 import android.media.ExifInterface;
+import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.app.Fragment;
 import android.os.Environment;
+import android.provider.MediaStore;
 import android.support.design.widget.AppBarLayout;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
@@ -64,6 +67,7 @@ import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
@@ -72,16 +76,6 @@ import cn.smssdk.EventHandler;
 import cn.smssdk.SMSSDK;
 import cn.smssdk.gui.RegisterPage;
 import cz.msebera.android.httpclient.Header;
-import cz.msebera.android.httpclient.HttpEntity;
-import cz.msebera.android.httpclient.HttpResponse;
-import cz.msebera.android.httpclient.client.ClientProtocolException;
-import cz.msebera.android.httpclient.client.HttpClient;
-import cz.msebera.android.httpclient.client.methods.HttpPost;
-import cz.msebera.android.httpclient.entity.mime.HttpMultipartMode;
-import cz.msebera.android.httpclient.entity.mime.MultipartEntityBuilder;
-import cz.msebera.android.httpclient.entity.mime.content.FileBody;
-import cz.msebera.android.httpclient.impl.client.DefaultHttpClient;
-import cz.msebera.android.httpclient.util.EntityUtils;
 
 
 /**
@@ -334,6 +328,30 @@ public class MainFragment extends Fragment{
         popWindow.showAsDropDown(v, 0, -370);
     }
 
+    String mCurrentPhotoPath;
+
+    private File createImageFile() {
+        // Create an image file name
+        String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
+        String imageFileName = "JPEG_" + timeStamp + "_";
+        File storageDir = getActivity().getExternalFilesDir(Environment.DIRECTORY_PICTURES);
+        File image = null;
+        try {
+            image = File.createTempFile(
+                    imageFileName,  /* prefix */
+                    ".jpg",         /* suffix */
+                    storageDir      /* directory */
+            );
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        // Save a file: path for use with ACTION_VIEW intents
+        mCurrentPhotoPath = image.getAbsolutePath();
+        Log.v("gyf", mCurrentPhotoPath);
+        return image;
+    }
+
     private void performLoggedIn() {
         initLocation();
         appbar.setVisibility(View.VISIBLE);
@@ -367,9 +385,10 @@ public class MainFragment extends Fragment{
             public void onClick(View view) {
                 Locate_source = 1;
                 //mLocationClient.start();
-                Intent cameraIntent = new Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE);
-                Log.v("gyf", "folder:"+ Environment.getExternalStorageDirectory()+", "+ getActivity().getApplicationInfo().dataDir);
-                startActivityForResult(cameraIntent, CAMERA_PICKER);
+                File file = createImageFile();
+                Intent captureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+                captureIntent.putExtra(MediaStore.EXTRA_OUTPUT, Uri.fromFile(file));
+                startActivityForResult(captureIntent, CAMERA_PICKER);
             }
         });
 
@@ -417,6 +436,120 @@ public class MainFragment extends Fragment{
                             }
                         })
                         .show();
+            }
+        });
+    }
+
+    public void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+
+        Log.i("gyf", ""+requestCode);
+        if (CAMERA_PICKER == requestCode) {
+            if (resultCode == Activity.RESULT_CANCELED) return;
+            Log.i("gyf", "photo");
+            onCaptureImageResult();
+        }
+    }
+
+    private void onCaptureImageResult() {
+        uploadImageDialog = ViewUnits.getLoadingDialog(getActivity(), "拍照上传", "正在上传照片");
+        Bitmap thumbnail = BitmapFactory.decodeFile(mCurrentPhotoPath);
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        thumbnail.compress(Bitmap.CompressFormat.JPEG, 40, bytes);
+        thumbnail.recycle();
+        File destination = new File(Environment.getExternalStorageDirectory(), System.currentTimeMillis() + ".png");
+        final String fpath = destination.getAbsolutePath();
+        imagePath = fpath;
+        FileOutputStream fo;
+        try {
+            destination.createNewFile();
+            fo = new FileOutputStream(destination);
+            fo.write(bytes.toByteArray());
+            fo.close();
+
+            final JsonHttpResponseHandler actActivityHandler = new JsonHttpResponseHandler() {
+                @Override
+                public void onSuccess(int statusCode, Header[] headers, JSONObject response) {
+                    uploadImageDialog.dismiss();
+                    try {
+                        if (response.getInt("status") == 0) {
+                            Toast.makeText(getActivity(), response.getString("data"), Toast.LENGTH_LONG).show();
+                            uploadImageDialog.dismiss();
+                            return;
+                        }
+                        Toast.makeText(getActivity(), "拍照上传成功", Toast.LENGTH_SHORT).show();
+                        update_acts();
+                    } catch (Exception e) {
+                        Log.e("gyf", e.toString());
+                        Toast.makeText(getActivity(), e.toString(), Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                }
+            };
+            Date date = new Date();
+            FileUploader.upload(Constant.backendUrlBase+"upload_image", "image_"+uid+"_"+date.getTime()+".jpg", new File(fpath), new FileUploaderHandler() {
+                @Override
+                public void onSuccess(int statusCode, String file_uri) {
+                    RequestParams params = new RequestParams();
+                    params.put("uid", uid);
+                    params.put("username", realname);
+                    params.put("act", 1);
+                    params.put("aid", aid);
+                    params.put("location", "not now");
+                    params.put("content", file_uri);
+                    params.put("latitude", 0);
+                    params.put("longitude", 0);
+                    NetClient.post("act_activity", params, actActivityHandler);
+                }
+
+                @Override
+                public void onFail(String errorMessage) {
+                    Toast.makeText(getActivity(), "照片上传失败", Toast.LENGTH_SHORT).show();
+                    uploadImageDialog.dismiss();
+                }
+            });
+
+        }
+        catch (Exception e) {
+            Toast.makeText(getActivity(), e.toString(), Toast.LENGTH_SHORT).show();
+            uploadImageDialog.dismiss();
+        }
+    }
+
+    private void update_acts() {
+        RequestParams params = new RequestParams();
+        params.put("aid", aid);
+        NetClient.post("acts", params, new JsonHttpResponseHandler() {
+            @Override
+            public void onSuccess(int statusCode, Header[] headers, JSONObject response) {
+            try {
+                if (response.getInt("status") == 0) {
+                    Toast.makeText(getActivity(), response.getString("data"), Toast.LENGTH_LONG).show();
+                    return;
+                }
+                Gson gson = new Gson();
+                List<Act> acts = new ArrayList<Act>();
+                JSONArray data = response.getJSONArray("data");
+                Log.i("gyf", response.getString("data"));
+                //Toast.makeText(getActivity(), response.getString("data"), Toast.LENGTH_LONG).show();
+                for (int i = 0; i < data.length(); i++) {
+                    Act act = gson.fromJson(data.getString(i), Act.class);
+                    acts.add(act);
+                }
+                ActsRecAdapter adapter = new ActsRecAdapter(acts, uid);
+
+                mRecyclerView.setHasFixedSize(true);
+                RecyclerView.LayoutManager mLayoutManager;
+
+                // use a linear layout manager
+                mLayoutManager = new LinearLayoutManager(getActivity());
+                mRecyclerView.setLayoutManager(mLayoutManager);
+                mRecyclerView.setAdapter(adapter);
+            } catch (Exception e) {
+                Log.e("gyf", e.toString());
+                Toast.makeText(getActivity(), e.toString(), Toast.LENGTH_SHORT).show();
+                return;
+            }
             }
         });
     }
@@ -527,120 +660,6 @@ public class MainFragment extends Fragment{
             }
         }
 
-    }
-
-    public void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-
-        Log.i("gyf", ""+requestCode);
-        if (CAMERA_PICKER == requestCode) {
-            if (resultCode == Activity.RESULT_CANCELED) return;
-            Log.i("gyf", "photo");
-            onCaptureImageResult(data);
-        }
-    }
-
-    private void onCaptureImageResult(Intent data) {
-        uploadImageDialog = ViewUnits.getLoadingDialog(getActivity(), "拍照上传", "正在上传照片");
-        Bitmap thumbnail = (Bitmap) data.getExtras().get("data");
-        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-        thumbnail.compress(Bitmap.CompressFormat.JPEG, 100, bytes);
-        File destination = new File(getActivity().getApplicationInfo().dataDir,
-                System.currentTimeMillis() + ".jpg");
-        final String fpath = destination.getAbsolutePath();
-        imagePath = fpath;
-        FileOutputStream fo;
-        try {
-            destination.createNewFile();
-            fo = new FileOutputStream(destination);
-            fo.write(bytes.toByteArray());
-            fo.close();
-
-            final JsonHttpResponseHandler actActivityHandler = new JsonHttpResponseHandler() {
-                @Override
-                public void onSuccess(int statusCode, Header[] headers, JSONObject response) {
-                    uploadImageDialog.dismiss();
-                    try {
-                        if (response.getInt("status") == 0) {
-                            Toast.makeText(getActivity(), response.getString("data"), Toast.LENGTH_LONG).show();
-                            uploadImageDialog.dismiss();
-                            return;
-                        }
-                        Toast.makeText(getActivity(), "拍照上传成功", Toast.LENGTH_SHORT).show();
-                        update_acts();
-                    } catch (Exception e) {
-                        Log.e("gyf", e.toString());
-                        Toast.makeText(getActivity(), e.toString(), Toast.LENGTH_SHORT).show();
-                        return;
-                    }
-                }
-            };
-            Date date = new Date();
-            FileUploader.upload(Constant.backendUrlBase+"upload_image", "image_"+uid+"_"+date.getTime()+".jpg", new File(fpath), new FileUploaderHandler() {
-                @Override
-                public void onSuccess(int statusCode, String file_uri) {
-                    RequestParams params = new RequestParams();
-                    params.put("uid", uid);
-                    params.put("username", realname);
-                    params.put("act", 1);
-                    params.put("aid", aid);
-                    params.put("location", "not now");
-                    params.put("content", file_uri);
-                    params.put("latitude", 0);
-                    params.put("longitude", 0);
-                    NetClient.post("act_activity", params, actActivityHandler);
-                }
-
-                @Override
-                public void onFail(String errorMessage) {
-                    Toast.makeText(getActivity(), "照片上传失败", Toast.LENGTH_SHORT).show();
-                    uploadImageDialog.dismiss();
-                }
-            });
-
-        }
-        catch (Exception e) {
-            Toast.makeText(getActivity(), e.toString(), Toast.LENGTH_SHORT).show();
-            uploadImageDialog.dismiss();
-        }
-    }
-
-    private void update_acts() {
-        RequestParams params = new RequestParams();
-        params.put("aid", aid);
-        NetClient.post("acts", params, new JsonHttpResponseHandler() {
-            @Override
-            public void onSuccess(int statusCode, Header[] headers, JSONObject response) {
-                try {
-                    if (response.getInt("status") == 0) {
-                        Toast.makeText(getActivity(), response.getString("data"), Toast.LENGTH_LONG).show();
-                        return;
-                    }
-                    Gson gson = new Gson();
-                    List<Act> acts = new ArrayList<Act>();
-                    JSONArray data = response.getJSONArray("data");
-                    Log.i("gyf", response.getString("data"));
-                    //Toast.makeText(getActivity(), response.getString("data"), Toast.LENGTH_LONG).show();
-                    for (int i = 0; i < data.length(); i++) {
-                        Act act = gson.fromJson(data.getString(i), Act.class);
-                        acts.add(act);
-                    }
-                    ActsRecAdapter adapter = new ActsRecAdapter(acts, uid);
-
-                    mRecyclerView.setHasFixedSize(true);
-                    RecyclerView.LayoutManager mLayoutManager;
-
-                    // use a linear layout manager
-                    mLayoutManager = new LinearLayoutManager(getActivity());
-                    mRecyclerView.setLayoutManager(mLayoutManager);
-                    mRecyclerView.setAdapter(adapter);
-                } catch (Exception e) {
-                    Log.e("gyf", e.toString());
-                    Toast.makeText(getActivity(), e.toString(), Toast.LENGTH_SHORT).show();
-                    return;
-                }
-            }
-        });
     }
 
 }
